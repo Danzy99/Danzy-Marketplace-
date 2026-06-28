@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Danzy Market — Marketplace Akun Game Otomatis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* Mewarisi tema neon cyberpunk asli Danzy Store */
+:root {
+  --c-bg:#070B14; --c-bg2:#0D1220; --c-bg3:#111827; --c-border:#1A2540; --c-border2:#243050;
+  --c-cyan:#00D4FF; --c-cyan2:#0EA5E9; --c-orange:#FF8C00; --c-green:#10B981; --c-red:#EF4444;
+  --c-text:#E2E8F0; --c-muted:#64748B; --glow-cyan:0 0 20px rgba(0,212,255,0.3); --r:14px;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Inter', sans-serif; background:var(--c-bg); color:var(--c-text); padding-bottom: 60px; }
+.nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:64px; background:rgba(7,11,20,0.9); border-bottom:1px solid var(--c-border); backdrop-filter:blur(20px); }
+.nav-logo { font-family:'Orbitron', sans-serif; font-size:20px; font-weight:900; color:var(--c-cyan); text-shadow:0 0 8px rgba(0,212,255,0.4); cursor:pointer; }
+.nav-logo span { color:var(--c-orange); }
+.nav-links button { background:none; border:none; color:var(--c-muted); font-size:13px; font-weight:500; padding:7px 13px; border-radius:8px; cursor:pointer; margin-left: 5px; }
+.nav-links button.active, .nav-links button:hover { color:var(--c-cyan); background:rgba(0,212,255,0.08); }
+
+.container { max-width:1200px; margin: 90px auto 20px; padding: 0 24px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* Grid Akun Game Marketplace */
+.market-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:20px; margin-top:20px; }
+.account-card { background:var(--c-bg3); border:1px solid var(--c-border); border-radius:var(--r); padding:20px; position:relative; display:flex; flex-direction:column; justify-content:space-between; }
+.account-card:hover { border-color:var(--c-cyan); box-shadow: var(--glow-cyan); }
+.game-badge { background: rgba(0,212,255,0.15); color: var(--c-cyan); font-family: 'Orbitron'; font-size: 11px; padding: 4px 10px; border-radius: 6px; align-self: flex-start; margin-bottom: 10px; }
+.account-title { font-size:16px; font-weight:700; color:#fff; margin-bottom:15px; font-family:'Rajdhani'; }
+.account-price { font-size:20px; font-weight:800; color:var(--c-orange); font-family:'Rajdhani'; margin-bottom:15px; }
+.btn-buy { width:100%; background:linear-gradient(135deg,var(--c-cyan),var(--c-cyan2)); color:#000; border:none; border-radius:10px; padding:10px; font-family:'Orbitron'; font-weight:900; cursor:pointer; }
+
+/* Form Field & Form Admin Style */
+.form-group { margin-bottom: 15px; }
+label { display:block; font-size:11px; color:var(--c-muted); text-transform:uppercase; margin-bottom:6px; font-weight:700;}
+input, select, textarea { width:100%; background:var(--c-bg2); border:1px solid var(--c-border); border-radius:8px; color:#fff; padding:12px; outline:none; }
+input:focus { border-color: var(--c-cyan); }
+.btn-submit { background: var(--c-green); color:#000; border:none; padding:12px; font-weight:700; border-radius:8px; cursor:pointer; width:100%; font-family: 'Orbitron'; }
+
+/* Invoice Box */
+.invoice-box { background:var(--c-bg3); border:1px solid var(--c-border2); border-radius:var(--r); padding:24px; max-width:550px; margin: 40px auto; }
+.status-badge { display:inline-block; padding:5px 12px; border-radius:20px; font-weight:700; font-size:12px; margin-bottom:15px; }
+.status-pending { background: rgba(255,140,0,0.2); color: var(--c-orange); }
+.status-paid { background: rgba(16,185,129,0.2); color: var(--c-green); }
+.delivery-box { background:#070B14; border:1px dashed var(--c-green); border-radius:8px; padding:15px; margin-top:20px; }
+.delivery-box h3 { color: var(--c-green); margin-bottom: 8px; font-size: 14px; }
+
+/* Table View untuk Admin */
+table { width:100%; border-collapse:collapse; margin-top:15px; background:var(--c-bg3); border-radius:8px; overflow:hidden;}
+th, td { padding:12px; text-align:left; border-bottom:1px solid var(--c-border); font-size:13px; }
+th { background: var(--c-bg2); color: var(--c-cyan); }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-logo" onclick="switchPage('market-page')">DANZY<span>MARKET</span></div>
+  <div class="nav-links">
+    <button id="btn-nav-market" class="active" onclick="switchPage('market-page')">🛒 Marketplace</button>
+    <button id="btn-nav-invoice" onclick="switchPage('invoice-page')">📄 Cek Invoice</button>
+    <button id="btn-nav-admin" onclick="switchPage('admin-page')">🛡️ Admin Panel</button>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div id="market-page" class="page active">
+    <h2 style="font-family:'Orbitron'; margin-bottom:8px;">READY STOCK AKUN GAME</h2>
+    <p style="color:var(--c-muted); font-size:14px; margin-bottom:20px;">Pengiriman otomatis instan 24/7 setelah pembayaran Anda divalidasi sistem.</p>
+    <div class="market-grid" id="accounts-container">
+      </div>
+  </div>
+
+  <div id="checkout-page" class="page">
+    <div class="invoice-box">
+      <h2 style="font-family:'Orbitron'; margin-bottom:15px; color:var(--c-cyan)">FORM CHECKOUT</h2>
+      <div id="checkout-account-details" style="margin-bottom:20px; font-size:14px;"></div>
+      
+      <div class="form-group">
+        <label>Email Anda (Untuk Menerima info akun)</label>
+        <input type="email" id="checkout-email" placeholder="nama@email.com">
+      </div>
+      <div class="form-group">
+        <label>Metode Pembayaran</label>
+        <select id="checkout-method">
+          <option value="QRIS">QRIS (Otomatis)</option>
+          <option value="DANA">DANA E-Wallet</option>
+          <option value="E-WALLET">OVO / GoPay / LinkAja</option>
+        </select>
+      </div>
+      <button class="btn-buy" onclick="processCheckout()">BAYAR SEKARANG</button>
+    </div>
+  </div>
+
+  <div id="invoice-page" class="page">
+    <div class="invoice-box">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="font-family:'Orbitron';">DETAIL INVOICE</h2>
+        <div id="inv-status" class="status-badge status-pending">PENDING</div>
+      </div>
+      
+      <div class="form-group" style="display:flex; gap:10px; margin-top:15px;">
+        <input type="text" id="search-invoice-id" placeholder="Masukkan ID Invoice (Contoh: DNZ-XXXXXX)">
+        <button class="btn-buy" style="width:120px;" onclick="loadInvoiceDetails(document.getElementById('search-invoice-id').value)">CARI</button>
+      </div>
+
+      <div id="invoice-details-content" style="margin-top:20px; font-size:14px; line-height:1.8;">
+        <p style="color:var(--c-muted)">Silakan cari ID invoice Anda atau lakukan pembelian untuk melihat invoice.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-page" class="page">
+    <h2 style="font-family:'Orbitron'; margin-bottom:15px;">🛡️ SECURITY ADMIN CONTROL</h2>
+    <div class="form-group" style="max-width:400px; display:flex; gap:10px;">
+      <input type="password" id="admin-token-input" placeholder="Masukkan X-Admin-Token Rahasia">
+      <button class="btn-buy" style="width:140px;" onclick="saveAdminToken()">VERIFIKASI</button>
+    </div>
+
+    <div id="admin-content" style="display:none; margin-top:30px;">
+      <div style="display:grid; grid-template-columns: 1fr 2fr; gap:30px;">
+        
+        <div style="background:var(--c-bg3); padding:20px; border-radius:var(--r); height:fit-content;">
+          <h3 style="font-family:'Rajdhani'; margin-bottom:15px; color:var(--c-orange)">➕ TAMBAH STOK AKUN</h3>
+          <div class="form-group">
+            <label>Game</label>
+            <select id="add-game"><option>MLBB</option><option>PUBG</option><option>VALORANT</option><option>FREE FIRE</option></select>
+          </div>
+          <div class="form-group">
+            <label>Judul Spesifikasi Akun</label>
+            <input type="text" id="add-title" placeholder="Skin 200, Mythic, Login Moonton">
+          </div>
+          <div class="form-group">
+            <label>Harga (IDR)</label>
+            <input type="number" id="add-price" placeholder="150000">
+          </div>
+          <div class="form-group">
+            <label>Data Email Akun</label>
+            <input type="text" id="add-email" placeholder="emailgame@gmail.com">
+          </div>
+          <div class="form-group">
+            <label>Password Akun</label>
+            <input type="text" id="add-password" placeholder="PassGame123!">
+          </div>
+          <div class="form-group">
+            <label>Info Tambahan Login</label>
+            <textarea id="add-logininfo" rows="2" placeholder="Login via Moonton dummy pasrah ambil sepaket gmail"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Catatan Admin Ke Pembeli</label>
+            <input type="text" id="add-notes" placeholder="Ganti password langsung setelah dibeli">
+          </div>
+          <button class="btn-submit" onclick="submitNewAccount()">UPLOAD KE DATABASE</button>
+        </div>
+
+        <div>
+          <div style="background:var(--c-bg3); padding:20px; border-radius:var(--r); margin-bottom:20px;">
+            <h3 style="font-family:'Rajdhani'; margin-bottom:15px; color:var(--c-cyan)">📊 DAFTAR TRANSAKSI & PEMBAYARAN ONLINE</h3>
+            <div style="overflow-x:auto;">
+              <table>
+                <thead>
+                  <tr><th>Invoice ID</th><th>Produk</th><th>Total</th><th>Metode</th><th>Status</th><th>Aksi Sim Callback</th></tr>
+                </thead>
+                <tbody id="admin-transactions-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_URL = 'http://localhost:5000/api';
+let selectedAccountId = null;
+let currentAdminToken = '';
+
+function switchPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  if(document.getElementById(`btn-nav-${pageId.split('-')[0]}`)) {
+    document.getElementById(`btn-nav-${pageId.split('-')[0]}`).classList.add('active');
+  }
+  if(pageId === 'market-page') loadMarketplaceAccounts();
+  if(pageId === 'admin-page') loadAdminDashboard();
+}
+
+// ════════════════ LOGIKA MARKETPLACE & BUY ════════════════
+
+async function loadMarketplaceAccounts() {
+  try {
+    const res = await fetch(`${API_URL}/marketplace/accounts`);
+    const accounts = await res.json();
+    const container = document.getElementById('accounts-container');
+    container.innerHTML = '';
+    
+    if(accounts.length === 0) {
+      container.innerHTML = `<p style="color:var(--c-muted)">Stok akun sedang kosong. Hubungi admin.</p>`;
+      return;
+    }
+
+    accounts.forEach(acc => {
+      container.innerHTML += `
+        <div class="account-card">
+          <div class="game-badge">${acc.game}</div>
+          <div class="account-title">${acc.title}</div>
+          <div class="account-price">Rp ${acc.price.toLocaleString('id-ID')}</div>
+          <button class="btn-buy" onclick="openCheckout('${acc._id}', '${acc.title}', ${acc.price})">BELI INSTAN</button>
+        </div>
+      `;
+    });
+  } catch (err) {
+    console.error("Gagal memuat akun market", err);
+  }
+}
+
+function openCheckout(id, title, price) {
+  selectedAccountId = id;
+  document.getElementById('checkout-account-details').innerHTML = `
+    <p><b>Produk:</b> ${title}</p>
+    <p style="color:var(--c-orange); font-size:18px; font-weight:700; margin-top:5px;"><b>Total Bayar:</b> Rp ${price.toLocaleString('id-ID')}</p>
+  `;
+  switchPage('checkout-page');
+}
+
+async function processCheckout() {
+  const email = document.getElementById('checkout-email').value;
+  const method = document.getElementById('checkout-method').value;
+
+  if(!email) return alert('Mohon isi email valid Anda untuk pengiriman data!');
+
+  try {
+    const res = await fetch(`${API_URL}/marketplace/checkout`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ accountId: selectedAccountId, customerEmail: email, paymentMethod: method })
+    });
+    const data = await res.json();
+    
+    if(data.success) {
+      alert(`Invoice Berhasil Dibuat!\nID: ${data.invoiceId}\n\nMenuju halaman instruksi pembayaran.`);
+      loadInvoiceDetails(data.invoiceId);
+      switchPage('invoice-page');
+    } else {
+      alert(data.message);
+    }
+  } catch (err) {
+    alert('Terjadi kendala checkout sistem backend.');
+  }
+}
+
+// ════════════════ TRACK INVOICE & AUTO DELIVERY ════════════════
+
+async function loadInvoiceDetails(invoiceId) {
+  if(!invoiceId) return;
+  try {
+    const res = await fetch(`${API_URL}/marketplace/invoice/${invoiceId}`);
+    if(res.status === 404) {
+      document.getElementById('invoice-details-content').innerHTML = `<p style="color:var(--c-red)">ID Invoice tidak valid atau tidak ditemukan.</p>`;
+      return;
+    }
+    const data = await res.json();
+    
+    document.getElementById('search-invoice-id').value = data.invoiceId;
+    const statusBadge = document.getElementById('inv-status');
+    statusBadge.innerText = data.status;
+    statusBadge.className = `status-badge ${data.status === 'PAID' ? 'status-paid' : 'status-pending'}`;
+
+    let htmlContent = `
+      <p style="margin-bottom:8px;"><b>ID Invoice:</b> <span style="color:var(--c-cyan)">${data.invoiceId}</span></p>
+      <p><b>Game / Produk:</b> ${data.game} - ${data.title}</p>
+      <p><b>Metode Pembayaran:</b> ${data.paymentMethod}</p>
+      <p><b>Total Harga:</b> Rp ${data.amount.toLocaleString('id-ID')}</p>
+      <hr style="border-color:var(--c-border); margin:15px 0;">
+    `;
+
+    if(data.status === 'PENDING') {
+      htmlContent += `
+        <div style="text-align:center; background:rgba(255,140,0,0.05); padding:15px; border:1px solid var(--c-orange); border-radius:8px;">
+          <p style="color:var(--c-orange); font-weight:700; margin-bottom:10px;">SILAKAN SELESAIKAN PEMBAYARAN</p>
+          ${data.paymentMethod === 'QRIS' ? `<p style="font-size:11px; color:var(--c-muted); margin-bottom:10px;">Scan barcode di bawah ini dengan aplikasi banking / e-wallet Anda</p><div style="background:#fff; padding:10px; display:inline-block; border-radius:6px; color:#000; font-weight:900;">[ SIMULASI QRIS MATRIX NEON ]</div>` : `<p>Transfer manual ke Rekening/DANA Danzy Store sebesar <b>Rp ${data.amount.toLocaleString('id-ID')}</b></p>`}
+          <p style="font-size:12px; margin-top:12px; color:var(--c-muted);">*Setelah membayar, simulasi callback/webhook gateway di dashboard admin untuk memproses otomatis.</p>
+        </div>
+      `;
+    } else if(data.status === 'PAID') {
+      htmlContent += `
+        <div class="delivery-box">
+          <h3>⚡ AUTO-DELIVERY (PESANAN DIKIRIM)</h3>
+          <p style="margin-top:8px;"><b>Data Email Login:</b> <span style="color:#fff; background:#243050; padding:2px 6px; border-radius:4px;">${data.delivery.email}</span></p>
+          <p><b>Password:</b> <span style="color:var(--c-cyan); background:#243050; padding:2px 6px; border-radius:4px;">${data.delivery.password}</span></p>
+          <p><b>Metode Login / Petunjuk:</b> ${data.delivery.loginInfo}</p>
+          ${data.delivery.notes ? `<p style="color:var(--c-orange); font-size:12px; margin-top:8px;">⚠️ <b>Catatan Penjual:</b> ${data.delivery.notes}</p>` : ''}
+        </div>
+      `;
+    }
+
+    document.getElementById('invoice-details-content').innerHTML = htmlContent;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// ════════════════ MANAGEMENT AREA ADMIN ════════════════
+
+function saveAdminToken() {
+  currentAdminToken = document.getElementById('admin-token-input').value;
+  loadAdminDashboard();
+}
+
+async function loadAdminDashboard() {
+  if(!currentAdminToken) return;
+  try {
+    const res = await fetch(`${API_URL}/admin/transactions`, {
+      headers: {'x-admin-token': currentAdminToken}
+    });
+    if(res.status === 403) {
+      alert('Token salah! Proteksi diaktifkan.');
+      return;
+    }
+    const transactions = await res.json();
+    document.getElementById('admin-content').style.display = 'block';
+
+    const tbody = document.getElementById('admin-transactions-table');
+    tbody.innerHTML = '';
+    transactions.forEach(t => {
+      tbody.innerHTML += `
+        <tr>
+          <td style="color:var(--c-cyan)">${t.invoiceId}</td>
+          <td><b>[${t.accountId?.game || 'N/A'}]</b> ${t.accountId?.title || 'Terhapus'}</td>
+          <td>Rp ${t.amount.toLocaleString('id-ID')}</td>
+          <td>${t.paymentMethod}</td>
+          <td><span style="color:${t.status==='PAID'?'var(--c-green)':'var(--c-orange)'}">${t.status}</span></td>
+          <td>
+            ${t.status === 'PENDING' ? `<button style="background:var(--c-green); border:none; padding:4px 8px; font-weight:700; border-radius:4px; cursor:pointer;" onclick="triggerSimulatedWebhook('${t.invoiceId}')">Bayar (Sim Callback)</button>` : '✅ Selesai'}
+          </td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function submitNewAccount() {
+  const body = {
+    game: document.getElementById('add-game').value,
+    title: document.getElementById('add-title').value,
+    price: Number(document.getElementById('add-price').value),
+    email: document.getElementById('add-email').value,
+    password: document.getElementById('add-password').value,
+    loginInfo: document.getElementById('add-logininfo').value,
+    notes: document.getElementById('add-notes').value
+  };
+
+  try {
+    const res = await fetch(`${API_URL}/admin/accounts`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-admin-token': currentAdminToken},
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if(data.success) {
+      alert('Stok Akun Game baru berhasil masuk database!');
+      loadAdminDashboard();
+    }
+  } catch (err) {
+    alert('Gagal mengunggah data akun.');
+  }
+}
+
+// Simulasi Trigger Webhook Callback Realistis dari Server Payment Gateway
+async function triggerSimulatedWebhook(invoiceId) {
+  try {
+    const res = await fetch(`${API_URL}/webhook/payment-callback`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ invoiceId, status: 'PAID' })
+    });
+    const data = await res.json();
+    alert(data.message);
+    loadAdminDashboard();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// Inisialisasi awal market saat web dibuka
+loadMarketplaceAccounts();
+</script>
+</body>
+</html>
+
