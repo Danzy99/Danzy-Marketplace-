@@ -1,216 +1,168 @@
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const Account = require('./models/Account');
+const Transaction = require('./models/Transaction');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Koneksi ke MongoDB
-mongoose.connect('mongodb://localhost:27017/danzymarket')
-  .then(() => console.log('Terhubung ke MongoDB DanzyMarket'))
-  .catch(err => console.error('Gagal koneksi database:', err));
+// Konfigurasi Environment & Database[span_9](start_span)[span_9](end_span)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/danzymarket';
+const JWT_SECRET = 'SUPER_SECRET_NEON_DANZY_2026';
 
-// Kunci Rahasia Admin (Ubah sesuai kebutuhan)
-const ADMIN_SECRET = 'DANZY_ADMIN_SECRET_2026';
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('Database Danzy Market Terhubung.'))
+  .catch(err => console.error(err));
 
-// ════════════════ MONGODB SCHEMAS ════════════════
+// ================= PUBLIC PLATFORM ROUTING =================
 
-// Schema untuk Akun Game yang dijual
-const AccountSchema = new mongoose.Schema({
-  game: { type: String, required: true }, // MLBB, PUBG, VALORANT, FF, dll.
-  title: { type: String, required: true }, // Contoh: "Mythic Glory 100 Skin Max"
-  price: { type: Number, required: true },
-  email: { type: String, required: true },
-  password: { type: String, required: true },
-  loginInfo: { type: String, required: true }, // Login via Moonton, Gmail, Riot, dll.
-  notes: { type: String, default: '' },
-  status: { type: String, enum: ['AVAILABLE', 'SOLD'], default: 'AVAILABLE' }
-}, { timestamps: true });
-
-const Account = mongoose.model('Account', AccountSchema);
-
-// Schema untuk Transaksi / Invoice Pembayaran
-const TransactionSchema = new mongoose.Schema({
-  invoiceId: { type: String, unique: true, required: true },
-  accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Account', required: true },
-  customerEmail: { type: String, required: true },
-  paymentMethod: { type: String, enum: ['QRIS', 'DANA', 'E-WALLET'], required: true },
-  amount: { type: Number, required: true },
-  status: { type: String, enum: ['PENDING', 'PAID', 'EXPIRED'], default: 'PENDING' }
-}, { timestamps: true });
-
-const Transaction = mongoose.model('Transaction', TransactionSchema);
-
-
-// ════════════════ API MARKETPLACE ════════════════
-
-// 1. Ambil list semua akun yang bersetatus AVAILABLE (Sembunyikan kredensial rahasia)
+// Ambil Akun Sesuai Kategori Game (Data Sensitif Otomatis Dihapus Dari Respon JSON)[span_10](start_span)[span_10](end_span)
 app.get('/api/marketplace/accounts', async (req, res) => {
   try {
-    const accounts = await Account.find({ status: 'AVAILABLE' })
-      .select('-email -password -loginInfo -notes'); // PROTEKSI AMAN: Sembunyikan data sensitif
-    res.json(accounts);
+    const { game } = req.query;
+    const query = { status: 'AVAILABLE' };
+    if (game) query.game = game;
+
+    const data = await Account.find(query).select('-email_login -password_login');
+    res.json(data);
   } catch (error) {
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ error: 'Server Error' });
   }
 });
 
-// 2. Proses Checkout & Buat Invoice Unik
+// Proses Pembuatan Invoice Otomatis[span_11](start_span)[span_11](end_span)[span_12](start_span)[span_12](end_span)
 app.post('/api/marketplace/checkout', async (req, res) => {
   try {
-    const { accountId, customerEmail, paymentMethod } = req.body;
+    const { account_id, name, email, whatsapp, payment } = req.body;
 
-    const account = await Account.findOne({ _id: accountId, status: 'AVAILABLE' });
-    if (!account) return res.status(404).json({ message: 'Akun game tidak tersedia atau sudah terjual!' });
+    const targetAccount = await Account.findOne({ _id: account_id, status: 'AVAILABLE' });
+    if (!targetAccount) return res.status(400).json({ success: false, message: 'Akun game tidak lagi tersedia.' });
 
-    // Generate Invoice unik (Contoh: DNZ-20260628-XXXX)
-    const uniqueHash = crypto.randomBytes(3).toString('hex').toUpperCase();
-    const invoiceId = `DNZ-${Date.now().toString().slice(-6)}-${uniqueHash}`;
+    // Generate Invoice ID unik[span_13](start_span)[span_13](end_span)
+    const invId = `DNZ-${Date.now().toString().slice(-5)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const transaction = new Transaction({
-      invoiceId,
-      accountId: account._id,
-      customerEmail,
-      paymentMethod,
-      amount: account.price,
+    const newTransaction = new Transaction({
+      invoice_id: invId,
+      buyer: { name, email, whatsapp },
+      game: targetAccount.game,
+      account_id: targetAccount._id,
+      harga: targetAccount.price,
+      payment,
       status: 'PENDING'
     });
 
-    await transaction.save();
-
-    res.json({
-      success: true,
-      message: 'Invoice berhasil dibuat',
-      invoiceId,
-      amount: transaction.amount,
-      paymentMethod,
-      // Simulasi data bayar (Misal string QRIS otomatis)
-      paymentQrData: paymentMethod === 'QRIS' ? `00020101021226380010ID.CO.QRIS.WWW011893600522011893600522510200520400005303360540${transaction.amount}5802ID` : null
-    });
-
+    await newTransaction.save();
+    res.json({ success: true, invoice: newTransaction });
   } catch (error) {
-    res.status(500).json({ message: 'Gagal memproses checkout' });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 3. Ambil Detail Invoice (Hanya tampilkan Password & Kredensial JIKA Status = PAID)
-app.get('/api/marketplace/invoice/:invoiceId', async (req, res) => {
+// Cek Pesanan / Detail Invoice[span_14](start_span)[span_14](end_span)[span_15](start_span)[span_15](end_span)
+app.get('/api/marketplace/order/:invoice_id', async (req, res) => {
   try {
-    const transaction = await Transaction.findOne({ invoiceId: req.params.invoiceId }).populate('accountId');
-    if (!transaction) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
+    const tx = await Transaction.findOne({ invoice_id: req.params.invoice_id }).populate('account_id');
+    if (!tx) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
 
-    const invoiceData = {
-      invoiceId: transaction.invoiceId,
-      game: transaction.accountId.game,
-      title: transaction.accountId.title,
-      amount: transaction.amount,
-      paymentMethod: transaction.paymentMethod,
-      status: transaction.status,
-      customerEmail: transaction.customerEmail
+    const payload = {
+      invoice_id: tx.invoice_id,
+      buyer: tx.buyer,
+      game: tx.game,
+      harga: tx.harga,
+      payment: tx.payment,
+      status: tx.status
     };
 
-    // JIKA LUNAS: Lakukan Auto-Delivery kredensial login akun
-    if (transaction.status === 'PAID') {
-      invoiceData.delivery = {
-        email: transaction.accountId.email,
-        password: transaction.accountId.password,
-        loginInfo: transaction.accountId.loginInfo,
-        notes: transaction.accountId.notes
+    // Keamanan Berlapis: Hanya kirim data login jika status PAID[span_16](start_span)[span_16](end_span)
+    if (tx.status === 'PAID' || tx.status === 'SUCCESS') {
+      payload.account_details = {
+        email_login: tx.account_id.email_login,
+        password_login: tx.account_id.password_login,
+        login_info: tx.account_id.login_info
       };
-    } else {
-      invoiceData.delivery = { message: "🔒 Kredensial terkunci. Selesaikan pembayaran terlebih dahulu." };
     }
-
-    res.json(invoiceData);
+    res.json(payload);
   } catch (error) {
-    res.status(500).json({ message: 'Gagal mengambil data invoice' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-
-// ════════════════ WEBHOOK SYSTEM ════════════════
-
-// Webhook Callback dari Payment Gateway Simulator
+// ================= PAYMENT GATEWAY WEBHOOK[span_17](start_span)[span_17](end_span)[span_18](start_span)[span_18](end_span) =================
 app.post('/api/webhook/payment-callback', async (req, res) => {
   try {
-    const { invoiceId, status } = req.body; // Status yang diharapkan: 'PAID' atau 'PENDING'
+    const { invoice_id, status } = req.body; // Ekspektasi status: 'PAID[span_19](start_span)[span_20](start_span)'[span_19](end_span)[span_20](end_span)
 
-    const transaction = await Transaction.findOne({ invoiceId });
-    if (!transaction) return res.status(404).json({ message: 'Invoice tidak valid' });
+    const tx = await Transaction.findOne({ invoice_id });
+    if (!tx) return res.status(404).json({ message: 'Invoice tidak valid' });
 
-    if (status === 'PAID' && transaction.status !== 'PAID') {
-      // 1. Ambil akun game yang dipesan
-      const account = await Account.findById(transaction.accountId);
-      
-      if (account && account.status === 'AVAILABLE') {
-        // 2. Ubah status akun menjadi SOLD
-        account.status = 'SOLD';
-        await account.save();
+    if (status === 'PAID' && tx.status === 'PENDING') {
+      tx.status = 'PAID';
+      await tx.save();
 
-        // 3. Ubah status transaksi menjadi PAID
-        transaction.status = 'PAID';
-        await transaction.save();
+      // Perbarui status ketersediaan akun di marketplace[span_21](start_span)[span_21](end_span)[span_22](start_span)[span_22](end_span)
+      await Account.findByIdAndUpdate(tx.account_id, { status: 'SOLD' });
 
-        console.log(`[WEBHOOK SUCCESS] Invoice ${invoiceId} berhasil diproses otomatis. Status akun diubah ke SOLD.`);
-        return res.json({ success: true, message: 'Callback Berhasil, produk otomatis terkirim!' });
-      } else {
-        return res.status(400).json({ message: 'Akun game sudah tidak tersedia lagi' });
-      }
+      console.log(`[INSTANT DELIVERY] Akun Terjual otomatis pada invoice ${invoice_id}`);
+      return res.json({ message: 'Auto-delivery terpicu berkat pembayaran tervalidasi.' });
     }
-
-    res.json({ success: true, message: 'Status pembayaran dipertahankan (PENDING/NO CHANGE)' });
+    res.json({ message: 'Status tidak berubah.' });
   } catch (error) {
-    res.status(500).json({ message: 'Sistem webhook error' });
+    res.status(500).json({ error: error.message });
   }
 });
 
+// ================= PRIVATE ADMIN SYSTEM (HIDDEN ROUTE)[span_23](start_span)[span_23](end_span)[span_24](start_span)[span_24](end_span) =================
 
-// ════════════════ SYSTEM ADMIN PANEL ════════════════
-
-// Middleware Proteksi Admin Tervalidasi
-const verifyAdmin = (req, res, next) => {
-  const token = req.headers['x-admin-token'];
-  if (token === ADMIN_SECRET) {
+// Middleware Keamanan Validasi Token Admin JWT[span_25](start_span)[span_25](end_span)
+const adminAuth = (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) return res.status(403).json({ message: 'Akses Dilarang!' });
+  try {
+    const verified = jwt.verify(token.split(' ')[1], JWT_SECRET);
+    req.admin = verified;
     next();
-  } else {
-    res.status(403).json({ message: 'Akses Ditolak! Proteksi Admin Tidak Valid.' });
+  } catch (err) {
+    res.status(401).json({ message: 'Token kedaluwarsa atau tidak sah.' });
   }
 };
 
-// Admin: Upload / Tambah Stok Akun Baru
-app.post('/api/admin/accounts', verifyAdmin, async (req, res) => {
+// Endpoint Login Rahasia Admin (Akses Manual via Postman/Client Endpoint)[span_26](start_span)[span_26](end_span)
+app.post('/api/secret-admin-login', async (req, res) => {
+  const { username, password } = req.body;
+  // Kredensial Statis Sesuai Permintaan Dokumen[span_27](start_span)[span_27](end_span)
+  if (username === 'admin' && password === 'rahasia') {
+    const token = jwt.sign({ role: 'superadmin' }, JWT_SECRET, { expiresIn: '2h' });
+    return res.json({ success: true, token });
+  }
+  res.status(400).json({ success: false, message: 'Kredensial Admin Salah!' });
+});
+
+// Admin Dashboard: Menambahkan Stok Akun Game Baru[span_28](start_span)[span_28](end_span)[span_29](start_span)[span_29](end_span)
+app.post('/api/admin/accounts', adminAuth, async (req, res) => {
   try {
-    const newAccount = new Account(req.body);
-    await newAccount.save();
-    res.json({ success: true, message: 'Akun game berhasil ditambahkan ke database!', data: newAccount });
+    const newAcc = new Account(req.body);
+    await newAcc.save();
+    res.json({ success: true, data: newAcc });
   } catch (error) {
-    res.status(500).json({ message: 'Gagal mengupload akun game' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Admin: Lihat Semua Histori Transaksi & Pembayaran
-app.get('/api/admin/transactions', verifyAdmin, async (req, res) => {
+// Admin Dashboard: Melihat Seluruh Data Transaksi yang Masuk[span_30](start_span)[span_30](end_span)[span_31](start_span)[span_31](end_span)
+app.get('/api/admin/transactions', adminAuth, async (req, res) => {
   try {
-    const transactions = await Transaction.find().populate('accountId').sort({ createdAt: -1 });
-    res.json(transactions);
+    const list = await Transaction.find().sort({ tanggal: -1 });
+    res.json(list);
   } catch (error) {
-    res.status(500).json({ message: 'Gagal memuat daftar transaksi' });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// Admin: Lihat Semua Stok Akun (Termasuk yang Terjual & Password Lengkap)
-app.get('/api/admin/accounts', verifyAdmin, async (req, res) => {
-  try {
-    const allAccounts = await Account.find().sort({ createdAt: -1 });
-    res.json(allAccounts);
-  } catch (error) {
-    res.status(500).json({ message: 'Gagal memuat database stok' });
-  }
-});
-
-// Jalankan Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server Danzy Market running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Backend Server running on port ${PORT}`));
+
